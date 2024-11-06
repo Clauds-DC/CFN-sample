@@ -1,0 +1,548 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Debit Card Rest API using Cloudformation"
+
+Parameters: 
+  LambdaSrcS3Bucket:
+    Description: "The S3 bucket of our Lambda Codes"
+    Type: String
+    Default: "cdc-aws-my-bucket"
+
+  RegistrationLambdaSrcS3Key:
+    Description: "The S3 object key of our Registration Code"
+    Type: String
+    Default: "cfn_debit_card_app/registration.zip"
+
+  ActivationLambdaSrcS3Key:
+    Description: "The S3 object key of our Activation Code"
+    Type: String
+    Default: "cfn_debit_card_app/activation.zip"
+
+  TransactionLambdaSrcS3Key:
+    Description: "The S3 object key of our Transaction Code"
+    Type: String
+    Default: "cfn_debit_card_app/transaction.zip"
+
+  TransactionHistoryLambdaSrcS3Key:
+    Description: "The S3 object key of our TransactionHistory Code"
+    Type: String
+    Default: "cfn_debit_card_app/transaction_history.zip"
+
+
+Resources: 
+
+  cfnCardHolderDynamoTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "card_account_no"
+          AttributeType: "S"
+      KeySchema:
+        - AttributeName: "card_account_no"
+          KeyType: "HASH"
+      BillingMode: PAY_PER_REQUEST
+      TableName: "card-holder-table"
+
+
+  cfnCardTransactionsDynamoTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      AttributeDefinitions:
+        - AttributeName: "card_account_no"
+          AttributeType: "S"
+        - AttributeName: "txn_date"
+          AttributeType: "S"
+      KeySchema: # Required
+        - AttributeName: "card_account_no"
+          KeyType: "HASH"
+        - AttributeName: "txn_date"
+          KeyType: "RANGE"
+      BillingMode: PAY_PER_REQUEST
+      TableName: "card-transactions-table"
+
+
+  lambdaRegistrationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: lambdaRegistrationRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "lambdaRegistrationRole"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                Resource:
+                  - "arn:aws:logs:*:940482453405:*"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - "arn:aws:logs:*:940482453405:log-group:*:*"
+              - Effect: Allow
+                Action:
+                  - "dynamodb:GetItem"
+                  - "dynamodb:Scan"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:Query"
+                  - "dynamodb:UpdateItem"
+                Resource:
+                  - !GetAtt cfnCardHolderDynamoTable.Arn
+                  - !GetAtt cfnCardTransactionsDynamoTable.Arn
+
+
+  lambdaActivationRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: lambdaActivationRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "lambdaActivationRole"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                Resource:
+                  - "arn:aws:logs:*:940482453405:*"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - "arn:aws:logs:*:940482453405:log-group:*:*"
+              - Effect: Allow
+                Action:
+                  - "dynamodb:GetItem"
+                  - "dynamodb:Scan"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:Query"
+                  - "dynamodb:UpdateItem"
+                Resource:
+                  - !GetAtt cfnCardHolderDynamoTable.Arn
+                  - !GetAtt cfnCardTransactionsDynamoTable.Arn
+
+
+  lambdaTransactionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: lambdaTransactionRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "lambdaTransactionRole"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                Resource:
+                  - "arn:aws:logs:*:940482453405:*"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - "arn:aws:logs:*:940482453405:log-group:*:*"
+              - Effect: Allow
+                Action:
+                  - "dynamodb:GetItem"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:Scan"
+                  - "dynamodb:Query"
+                  - "dynamodb:UpdateItem"
+                Resource:
+                  - !GetAtt cfnCardHolderDynamoTable.Arn
+                  - !GetAtt cfnCardTransactionsDynamoTable.Arn
+
+
+  lambdaTxnHistoryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: lambdaTxnHistoryRole
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "lambdaTxnHistoryRole"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogGroup"
+                Resource:
+                  - "arn:aws:logs:*:940482453405:*"
+              - Effect: Allow
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - "arn:aws:logs:*:940482453405:log-group:*:*"
+              - Effect: Allow
+                Action:
+                  - "dynamodb:GetItem"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:Scan"
+                  - "dynamodb:Query"
+                  - "dynamodb:UpdateItem"
+                Resource:
+                  - !GetAtt cfnCardHolderDynamoTable.Arn
+                  - !GetAtt cfnCardTransactionsDynamoTable.Arn
+
+
+  cfnRegistrationFunction: #lambda
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: "Registration Function"
+      FunctionName: "cfnRegistrationFunction"
+      Handler: registration.lambda_handler
+      Role: !GetAtt lambdaRegistrationRole.Arn
+      Runtime: python3.12
+      Timeout: 60
+      Code:
+        S3Bucket: !Ref LambdaSrcS3Bucket
+        S3Key: !Ref RegistrationLambdaSrcS3Key
+      Environment:
+        Variables:
+          CARD_HOLDER_TABLE: !Ref cfnCardHolderDynamoTable
+          CARD_TRANSACTION_TABLE: !Ref cfnCardTransactionsDynamoTable
+
+
+  cfnActivationFunction: #lambda
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: "Card Activation Function"
+      FunctionName: "cfnActivationFunction"
+      Handler: activation.lambda_handler
+      Role: !GetAtt lambdaActivationRole.Arn
+      Timeout: 60
+      Runtime: python3.12
+      Code:
+        S3Bucket: !Ref LambdaSrcS3Bucket
+        S3Key: !Ref ActivationLambdaSrcS3Key
+      Environment:
+        Variables:
+          CARD_HOLDER_TABLE: !Ref cfnCardHolderDynamoTable
+          CARD_TRANSACTION_TABLE: !Ref cfnCardTransactionsDynamoTable
+
+
+  cfnTransactionFunction: #lambda
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: "Transaction Function"
+      FunctionName: "cfnTransactionFunction"
+      Handler: transaction.lambda_handler
+      Role: !GetAtt lambdaTransactionRole.Arn
+      Runtime: python3.12
+      Timeout: 60
+      Code:
+        S3Bucket: !Ref LambdaSrcS3Bucket
+        S3Key: !Ref TransactionLambdaSrcS3Key
+      Environment:
+        Variables:
+          CARD_HOLDER_TABLE: !Ref cfnCardHolderDynamoTable
+          CARD_TRANSACTION_TABLE: !Ref cfnCardTransactionsDynamoTable
+
+
+  cfnTxnHistoryFunction: #lambda
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: "TxnHistory Function"
+      FunctionName: "cfnTxnHistoryFunction"
+      Handler: transaction_history.lambda_handler
+      Role: !GetAtt lambdaTxnHistoryRole.Arn
+      Runtime: python3.12
+      Timeout: 60
+      Code:
+        S3Bucket: !Ref LambdaSrcS3Bucket
+        S3Key: !Ref TransactionHistoryLambdaSrcS3Key
+      Environment:
+        Variables:
+          CARD_HOLDER_TABLE: !Ref cfnCardHolderDynamoTable
+          CARD_TRANSACTION_TABLE: !Ref cfnCardTransactionsDynamoTable
+
+
+  # API GW No.1 main resource
+  myRestAPI: #api
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: debit-app
+      Description: "Debit Card Rest API using Cloudformation"
+      FailOnWarnings: true
+
+  # API GW 2nd level
+  restRegistrationResource: #api
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt myRestAPI.RootResourceId
+      PathPart: registration
+      RestApiId: !Ref myRestAPI
+
+  restAPIActivationResource: #api resource
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt myRestAPI.RootResourceId
+      PathPart: activation
+      RestApiId: !Ref myRestAPI
+
+  restAPITransactionResource: #api resource
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt myRestAPI.RootResourceId
+      PathPart: transaction
+      RestApiId: !Ref myRestAPI
+
+  restAPITxnHistoryResource: #api resource
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt myRestAPI.RootResourceId
+      PathPart: transaction-history
+      RestApiId: !Ref myRestAPI
+
+  # API GW 4th level - dependency ni 3rd level
+  registrationApiResourceMethodPermission: #api method permission
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:invokeFunction
+      FunctionName: !GetAtt cfnRegistrationFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        !Join [
+          "",
+          [
+            "arn:aws:execute-api:",
+            !Ref "AWS::Region",
+            ":",
+            !Ref "AWS::AccountId",
+            ":",
+            !Ref myRestAPI,
+            "/*",
+          ],
+        ]
+
+  ActivationResourceMethodPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:invokeFunction
+      FunctionName: !GetAtt cfnActivationFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        !Join [
+          "",
+          [
+            "arn:aws:execute-api:",
+            !Ref "AWS::Region",
+            ":",
+            !Ref "AWS::AccountId",
+            ":",
+            !Ref myRestAPI,
+            "/*",
+          ],
+        ]
+
+  transactionApiResourceMethodPermission: #api method permission
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:invokeFunction
+      FunctionName: !GetAtt cfnTransactionFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        !Join [
+          "",
+          [
+            "arn:aws:execute-api:",
+            !Ref "AWS::Region",
+            ":",
+            !Ref "AWS::AccountId",
+            ":",
+            !Ref myRestAPI,
+            "/*",
+          ],
+        ]
+
+  txnHistoryApiResourceMethodPermission: #api method permission
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:invokeFunction
+      FunctionName: !GetAtt cfnTxnHistoryFunction.Arn
+      Principal: apigateway.amazonaws.com
+      SourceArn:
+        !Join [
+          "",
+          [
+            "arn:aws:execute-api:",
+            !Ref "AWS::Region",
+            ":",
+            !Ref "AWS::AccountId",
+            ":",
+            !Ref myRestAPI,
+            "/*",
+          ],
+        ]
+
+  # 3rd Level in API GW Resources
+  registrationResourcePostMethod: #api method
+    Type: AWS::ApiGateway::Method
+    DependsOn: registrationApiResourceMethodPermission
+    Properties:
+      ApiKeyRequired: False
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri:
+          !Join [
+            "",
+            [
+              "arn:aws:apigateway:",
+              !Ref "AWS::Region",
+              ":lambda:path/2015-03-31/functions/",
+              !GetAtt cfnRegistrationFunction.Arn,
+              "/invocations",
+            ],
+          ]
+        IntegrationResponses:
+          - StatusCode: "200"
+      MethodResponses:
+        - StatusCode: "200"
+      ResourceId: !Ref restRegistrationResource
+      RestApiId: !GetAtt myRestAPI.RestApiId
+
+  ActivationResourcePostMethod:
+    Type: AWS::ApiGateway::Method
+    DependsOn: ActivationResourceMethodPermission
+    Properties:
+      ApiKeyRequired: False
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri:
+          !Join [
+            "",
+            [
+              "arn:aws:apigateway:",
+              !Ref "AWS::Region",
+              ":lambda:path/2015-03-31/functions/",
+              !GetAtt cfnActivationFunction.Arn,
+              "/invocations",
+            ],
+          ]
+        IntegrationResponses:
+          - StatusCode: "200"
+      MethodResponses:
+        - StatusCode: "200"
+      ResourceId: !Ref restAPIActivationResource
+      RestApiId: !GetAtt myRestAPI.RestApiId
+
+  TransactionResourcePostMethod:
+    Type: AWS::ApiGateway::Method
+    DependsOn: transactionApiResourceMethodPermission
+    Properties:
+      ApiKeyRequired: False
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri:
+          !Join [
+            "",
+            [
+              "arn:aws:apigateway:",
+              !Ref "AWS::Region",
+              ":lambda:path/2015-03-31/functions/",
+              !GetAtt cfnTransactionFunction.Arn,
+              "/invocations",
+            ],
+          ]
+        IntegrationResponses:
+          - StatusCode: "200"
+      MethodResponses:
+        - StatusCode: "200"
+      ResourceId: !Ref restAPITransactionResource
+      RestApiId: !GetAtt myRestAPI.RestApiId
+
+  TxnHistoryResourcePostMethod:
+    Type: AWS::ApiGateway::Method
+    DependsOn: txnHistoryApiResourceMethodPermission
+    Properties:
+      ApiKeyRequired: False
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri:
+          !Join [
+            "",
+            [
+              "arn:aws:apigateway:",
+              !Ref "AWS::Region",
+              ":lambda:path/2015-03-31/functions/",
+              !GetAtt cfnTxnHistoryFunction.Arn,
+              "/invocations",
+            ],
+          ]
+        IntegrationResponses:
+          - StatusCode: "200"
+      MethodResponses:
+        - StatusCode: "200"
+      ResourceId: !Ref restAPITxnHistoryResource
+      RestApiId: !GetAtt myRestAPI.RestApiId
+
+  apiDeployment: #api deployment
+    Type: AWS::ApiGateway::Deployment
+    DependsOn: registrationResourcePostMethod
+    Properties:
+      RestApiId: !Ref myRestAPI
+
+  #Test manually at API for redeployment
+
+  apiStage: #api stage
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      DeploymentId: !Ref apiDeployment
+      MethodSettings:
+        - HttpMethod: "POST"
+          ResourcePath: "/registration"
+        # - HttpMethod: "POST"
+        #   ResourcePath: "/activation"
+      RestApiId: !Ref myRestAPI
+      StageName: api
